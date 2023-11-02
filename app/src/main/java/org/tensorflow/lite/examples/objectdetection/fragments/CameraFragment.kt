@@ -78,6 +78,7 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
     private var adsData = ArrayList<AdRecord>()
     private var tagWithAdsUrlMap = HashMap<String, MutableList<String>>()
     private var random = Random();
+    private var nextAdKeywords = "";
 
     override fun onResume() {
         super.onResume()
@@ -140,7 +141,7 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
                     Log.i("test---", "play end")
                     playerIsPlaying = false;
                     playerUrlSet = false;
-                    fragmentCameraBinding.textView.text = ""
+                    fragmentCameraBinding.curAdsKeywords.text = ""
                 } else {
                     // buffering
                     Log.i("test---", "buffering")
@@ -156,12 +157,24 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
         adsData.add(AdRecord("http://10.0.34.14/erica/hackathon/hairdryer_toothbrush.ts", listOf("hairdryer", "toothbrush")))
         adsData.add(AdRecord("http://10.0.34.14/erica/hackathon/laptop_keyboard_mouse.ts", listOf("laptop", "keyboard", "mouse")))
         adsData.add(AdRecord("http://10.0.34.14/erica/hackathon/teddybear.ts", listOf("teddybear")))
+        adsData.add(AdRecord("http://10.0.6.245/main/videos/logitech_mx_master_3s.mp4", listOf("mouse")))
+        adsData.add(AdRecord("http://10.0.6.245/main/videos/samsung_s23.mp4", listOf("cell phone")))
+
+//        adsData.add(AdRecord("asset:///airplane_backpack_handbag.ts", listOf("airplane", "backpack", "handbag")))
+//        adsData.add(AdRecord("asset://book.mp4", listOf("book")))
+//        adsData.add(AdRecord("asset://bottle_cup.mp4", listOf("bottle", "cup")))
+//        adsData.add(AdRecord("asset://hairdryer.ts", listOf("hairdryer")))
+//        adsData.add(AdRecord("asset://hairdryer_toothbrush.ts", listOf("hairdryer", "toothbrush")))
+//        adsData.add(AdRecord("asset://laptop_keyboard_mouse.ts", listOf("laptop", "keyboard", "mouse")))
+//        adsData.add(AdRecord("asset://teddybear.ts", listOf("teddybear")))
+//        adsData.add(AdRecord("asset://logitech_mx_master_3s.mp4", listOf("mouse")))
+//        adsData.add(AdRecord("asset://samsung_s23.mp4", listOf("cell phone")))
 
         for (ad in adsData) {
             for (tag in ad.tags) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     tagWithAdsUrlMap.putIfAbsent(tag, ArrayList<String>())
-                    tagWithAdsUrlMap.get(tag)!!.add(ad.url)
+                    tagWithAdsUrlMap[tag]!!.add(ad.url)
                 }
             }
         }
@@ -281,19 +294,24 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
             }
 
             Log.i("test---", resultList.size.toString())
-            if (resultList.size == sampleSize && !playerIsPlaying && !playerUrlSet) {
+            if (resultList.size == sampleSize) {
                 val mostFrequentCategory = findMode(resultList)[0]
                 val url = findSuitableVideoUrl(mostFrequentCategory)
+                val item = MediaItem.fromUri(url)
 
                 if (mostFrequentCategory != "person") {
-                    fragmentCameraBinding.textView.text = mostFrequentCategory
+                    fragmentCameraBinding.nextAdsKeywords.text = mostFrequentCategory
+                    nextAdKeywords = mostFrequentCategory
 
-                    val item = MediaItem.fromUri(url)
-                    player?.setMediaItem(item)
-                    player?.prepare()
-                    player?.play()
-                    playerUrlSet = true;
-                    Log.i("test---", "set video link")
+                    if (!playerIsPlaying && !playerUrlSet) {
+                        fragmentCameraBinding.curAdsKeywords.text = nextAdKeywords
+
+                        player?.setMediaItem(item)
+                        player?.prepare()
+                        player?.play()
+                        playerUrlSet = true;
+                        Log.i("test---", "set video link")
+                    }
                 }
             }
         }
@@ -301,7 +319,7 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
 
     fun findSuitableVideoUrl(category: String): String {
 //        return "https://videocdn.bodybuilding.com/video/mp4/62000/62792m.mp4"
-        val adsList = tagWithAdsUrlMap.get(category)
+        val adsList = tagWithAdsUrlMap[category]
             ?: return "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4"
         val idx = random.nextInt(adsList.size)
         return adsList[idx]
