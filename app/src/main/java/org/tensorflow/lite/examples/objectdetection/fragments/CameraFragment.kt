@@ -46,6 +46,7 @@ import java.util.concurrent.Executors
 import org.tensorflow.lite.examples.objectdetection.MyCameraFilter
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
+import kotlin.collections.HashSet
 
 class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
 
@@ -68,17 +69,23 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
 
     private var player: SimpleExoPlayer? = null
 
-    private var resultList = LinkedList<String>()
-    private val sampleSize = 10
-    private val validFactor = 0.5
+    private var resultList: MutableList<String> = ArrayList<String>()
+    private val sampleSize = 5
+    private val goodThreshold = 0.4f
 
     private var playerIsPlaying: Boolean = false
     private var playerUrlSet: Boolean = false
 
     private var adsData = ArrayList<AdRecord>()
     private var tagWithAdsUrlMap = HashMap<String, MutableList<String>>()
+    private var tagSet = HashSet<String>()
     private var random = Random();
-    private var nextAdKeywords = "";
+    private var nextAdKeywords = ""
+
+    private var defaultVideoItem = MediaItem.fromUri("asset:///videos/default.mp4")
+    private var defaultVideoPlaying = false
+
+    private val lock = Any()
 
     override fun onResume() {
         super.onResume()
@@ -135,40 +142,34 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
             override fun onPlayerStateChanged(playWhenReady: Boolean, playbackState: Int) {
                 super.onPlayerStateChanged(playWhenReady, playbackState)
                 if (playWhenReady && playbackState == Player.STATE_READY) {
-                    Log.i("test---", "start play")
                     playerIsPlaying = true;
                 } else if (playbackState == Player.STATE_ENDED) {
-                    Log.i("test---", "play end")
                     playerIsPlaying = false;
                     playerUrlSet = false;
                     fragmentCameraBinding.curAdsKeywords.text = ""
                 } else {
                     // buffering
-                    Log.i("test---", "buffering")
                 }
             }
         })
 
         // init ads data
-        adsData.add(AdRecord("http://10.0.34.14/erica/hackathon/airplane_backpack_handbag.ts", listOf("airplane", "backpack", "handbag")))
-        adsData.add(AdRecord("http://10.0.34.14/erica/hackathon/book.mp4", listOf("book")))
-        adsData.add(AdRecord("http://10.0.34.14/erica/hackathon/bottle_cup.mp4", listOf("bottle", "cup")))
-        adsData.add(AdRecord("http://10.0.34.14/erica/hackathon/hairdryer.ts", listOf("hairdryer")))
-        adsData.add(AdRecord("http://10.0.34.14/erica/hackathon/hairdryer_toothbrush.ts", listOf("hairdryer", "toothbrush")))
-        adsData.add(AdRecord("http://10.0.34.14/erica/hackathon/laptop_keyboard_mouse.ts", listOf("laptop", "keyboard", "mouse")))
-        adsData.add(AdRecord("http://10.0.34.14/erica/hackathon/teddybear.ts", listOf("teddybear")))
-        adsData.add(AdRecord("http://10.0.6.245/main/videos/logitech_mx_master_3s.mp4", listOf("mouse")))
-        adsData.add(AdRecord("http://10.0.6.245/main/videos/samsung_s23.mp4", listOf("cell phone")))
+        addAdRecord(AdRecord("asset:///videos/airplane_backpack_handbag.ts", listOf("airplane", "backpack", "handbag")))
+        addAdRecord(AdRecord("asset:///videos/book.mp4", listOf("book")))
+        addAdRecord(AdRecord("asset:///videos/bottle_cup.mp4", listOf("bottle", "cup")))
+        addAdRecord(AdRecord("asset:///videos/hairdryer.ts", listOf("hairdryer")))
+        addAdRecord(AdRecord("asset:///videos/hairdryer_toothbrush.ts", listOf("hairdryer", "toothbrush")))
+        addAdRecord(AdRecord("asset:///videos/laptop_keyboard_mouse.ts", listOf("laptop", "keyboard")))
+        addAdRecord(AdRecord("asset:///videos/mouse.mp4", listOf("mouse")))
+        addAdRecord(AdRecord("asset:///videos/pottedplant.mp4", listOf("potted plant")))
+        addAdRecord(AdRecord("asset:///videos/remote.mp4", listOf("remote")))
+        addAdRecord(AdRecord("asset:///videos/spoon_knife_fork_bowl_food.mp4", listOf("spoon", "knife", "fork", "bowl", "food")))
+        addAdRecord(AdRecord("asset:///videos/teddybear.ts", listOf("teddy bear")))
+        addAdRecord(AdRecord("asset:///videos/umbrella_2.mp4", listOf("umbrella")))
+        addAdRecord(AdRecord("asset:///videos/wineglass_bottle.ts", listOf("wine glass", "bottle")))
 
-//        adsData.add(AdRecord("asset:///airplane_backpack_handbag.ts", listOf("airplane", "backpack", "handbag")))
-//        adsData.add(AdRecord("asset://book.mp4", listOf("book")))
-//        adsData.add(AdRecord("asset://bottle_cup.mp4", listOf("bottle", "cup")))
-//        adsData.add(AdRecord("asset://hairdryer.ts", listOf("hairdryer")))
-//        adsData.add(AdRecord("asset://hairdryer_toothbrush.ts", listOf("hairdryer", "toothbrush")))
-//        adsData.add(AdRecord("asset://laptop_keyboard_mouse.ts", listOf("laptop", "keyboard", "mouse")))
-//        adsData.add(AdRecord("asset://teddybear.ts", listOf("teddybear")))
-//        adsData.add(AdRecord("asset://logitech_mx_master_3s.mp4", listOf("mouse")))
-//        adsData.add(AdRecord("asset://samsung_s23.mp4", listOf("cell phone")))
+        addAdRecord(AdRecord("asset:///videos/logitech_mx_master_3s.mp4", listOf("mouse")))
+        addAdRecord(AdRecord("asset:///videos/samsung_s23.mp4", listOf("cell phone")))
 
         for (ad in adsData) {
             for (tag in ad.tags) {
@@ -177,6 +178,13 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
                     tagWithAdsUrlMap[tag]!!.add(ad.url)
                 }
             }
+        }
+    }
+
+    private fun addAdRecord(record: AdRecord) {
+        adsData.add(record)
+        for (tag in record.tags) {
+            tagSet.add(tag)
         }
     }
 
@@ -285,47 +293,87 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
             //     imageWidth
             // )
 
-            if (!resultList.isEmpty() && resultList.size >= sampleSize) {
+            while (!resultList.isEmpty() && resultList.size >= sampleSize) {
                 resultList.removeFirst()
             }
 
             if (results != null && results.size > 0) {
-                resultList.add(results[0].categories[0].label)
-            }
-
-            Log.i("test---", resultList.size.toString())
-            if (resultList.size == sampleSize) {
-                val mostFrequentCategory = findMode(resultList)[0]
-                val url = findSuitableVideoUrl(mostFrequentCategory)
-                val item = MediaItem.fromUri(url)
-
-                if (mostFrequentCategory != "person") {
-                    fragmentCameraBinding.nextAdsKeywords.text = mostFrequentCategory
-                    nextAdKeywords = mostFrequentCategory
-
-                    if (!playerIsPlaying && !playerUrlSet) {
-                        fragmentCameraBinding.curAdsKeywords.text = nextAdKeywords
-
-                        player?.setMediaItem(item)
-                        player?.prepare()
-                        player?.play()
-                        playerUrlSet = true;
-                        Log.i("test---", "set video link")
+                for (result in results) {
+                    val categories = result.categories
+                    categories.sortByDescending { it.score }
+                    if (tagSet.contains(categories[0].label)) {
+                        resultList.add(categories[0].label)
                     }
                 }
+            }
+
+            if (resultList.size < sampleSize && !playerIsPlaying) {
+                playDefaultVideo()
+            }
+
+            Log.i("test---", " " + resultList)
+            if (resultList.size >= sampleSize) {
+                val mostFrequentCategories = findSuitableCategories(resultList)
+                for (category in mostFrequentCategories) {
+                    if (tagSet.contains(category)) {
+                        setNextAdTo(category)
+                        break
+                    } else {
+                        setNextAdTo("")
+                    }
+                }
+            }
+
+            if (nextAdKeywords != "" && ((!playerIsPlaying && !playerUrlSet) || defaultVideoPlaying)) {
+                if (defaultVideoPlaying) {
+                    player?.stop()
+                }
+                synchronized(lock) {
+                    setCurAdTo(nextAdKeywords)
+                    val url = findSuitableVideoUrl(nextAdKeywords)
+                    val item = MediaItem.fromUri(url)
+                    player?.setMediaItem(item)
+                    player?.prepare()
+                    player?.play()
+                    playerUrlSet = true;
+                    defaultVideoPlaying = false
+                    setNextAdTo("")
+                }
+            }
+
+            if (nextAdKeywords == "" && !playerIsPlaying && !playerUrlSet) {
+                playDefaultVideo()
             }
         }
     }
 
+    private fun setNextAdTo(nextAd: String) = synchronized(lock) {
+        fragmentCameraBinding.nextAdsKeywords.text = nextAd
+        nextAdKeywords = nextAd
+    }
+
+    private fun setCurAdTo(curAd: String) = synchronized(lock) {
+        fragmentCameraBinding.curAdsKeywords.text = curAd
+    }
+
+    private fun playDefaultVideo() {
+        player?.setMediaItem(defaultVideoItem)
+        player?.prepare()
+        player?.play()
+        defaultVideoPlaying = true
+        playerUrlSet = true
+        setCurAdTo("")
+    }
+
     fun findSuitableVideoUrl(category: String): String {
-//        return "https://videocdn.bodybuilding.com/video/mp4/62000/62792m.mp4"
         val adsList = tagWithAdsUrlMap[category]
-            ?: return "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4"
+            ?: return "asset:///videos/default/mp4"
         val idx = random.nextInt(adsList.size)
         return adsList[idx]
     }
 
-    fun findMode(list: List<String>): List<String> {
+    fun findSuitableCategories(list: List<String>): List<String> {
+//        return list.subList(list.size - 1, list.size)
         val frequencyMap = list.groupingBy { it }.eachCount()
         val maxFrequency = frequencyMap.values.maxOrNull()
         return frequencyMap.filterValues { it == maxFrequency }.keys.toList()
