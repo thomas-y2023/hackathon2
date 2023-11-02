@@ -18,7 +18,7 @@ package org.tensorflow.lite.examples.objectdetection.fragments
 import android.annotation.SuppressLint
 import android.content.res.Configuration
 import android.graphics.Bitmap
-import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -34,6 +34,7 @@ import androidx.navigation.Navigation
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.Player
 import com.google.android.exoplayer2.SimpleExoPlayer
+import org.tensorflow.lite.examples.objectdetection.AdRecord
 import org.tensorflow.lite.examples.objectdetection.ObjectDetectorHelper
 import org.tensorflow.lite.examples.objectdetection.R
 import org.tensorflow.lite.examples.objectdetection.databinding.FragmentCameraBinding
@@ -43,6 +44,8 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 import org.tensorflow.lite.examples.objectdetection.MyCameraFilter
+import kotlin.collections.ArrayList
+import kotlin.collections.HashMap
 
 class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
 
@@ -69,8 +72,12 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
     private val sampleSize = 10
     private val validFactor = 0.5
 
-    private var playerIsPlaying: Boolean = false;
-    private var playerUrlSet: Boolean = false;
+    private var playerIsPlaying: Boolean = false
+    private var playerUrlSet: Boolean = false
+
+    private var adsData = ArrayList<AdRecord>()
+    private var tagWithAdsUrlMap = HashMap<String, MutableList<String>>()
+    private var random = Random();
 
     override fun onResume() {
         super.onResume()
@@ -133,12 +140,31 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
                     Log.i("test---", "play end")
                     playerIsPlaying = false;
                     playerUrlSet = false;
+                    fragmentCameraBinding.textView.text = ""
                 } else {
                     // buffering
                     Log.i("test---", "buffering")
                 }
             }
         })
+
+        // init ads data
+        adsData.add(AdRecord("http://10.0.34.14/erica/hackathon/airplane_backpack_handbag.ts", listOf("airplane", "backpack", "handbag")))
+        adsData.add(AdRecord("http://10.0.34.14/erica/hackathon/book.mp4", listOf("book")))
+        adsData.add(AdRecord("http://10.0.34.14/erica/hackathon/bottle_cup.mp4", listOf("bottle", "cup")))
+        adsData.add(AdRecord("http://10.0.34.14/erica/hackathon/hairdryer.ts", listOf("hairdryer")))
+        adsData.add(AdRecord("http://10.0.34.14/erica/hackathon/hairdryer_toothbrush.ts", listOf("hairdryer", "toothbrush")))
+        adsData.add(AdRecord("http://10.0.34.14/erica/hackathon/laptop_keyboard_mouse.ts", listOf("laptop", "keyboard", "mouse")))
+        adsData.add(AdRecord("http://10.0.34.14/erica/hackathon/teddybear.ts", listOf("teddybear")))
+
+        for (ad in adsData) {
+            for (tag in ad.tags) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    tagWithAdsUrlMap.putIfAbsent(tag, ArrayList<String>())
+                    tagWithAdsUrlMap.get(tag)!!.add(ad.url)
+                }
+            }
+        }
     }
 
     // Initialize CameraX, and prepare to bind the camera use cases
@@ -251,7 +277,6 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
             }
 
             if (results != null && results.size > 0) {
-//                Log.i("test---", results[0].categories[0].label)
                 resultList.add(results[0].categories[0].label)
             }
 
@@ -276,7 +301,10 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
 
     fun findSuitableVideoUrl(category: String): String {
 //        return "https://videocdn.bodybuilding.com/video/mp4/62000/62792m.mp4"
-        return "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4"
+        val adsList = tagWithAdsUrlMap.get(category)
+            ?: return "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4"
+        val idx = random.nextInt(adsList.size)
+        return adsList[idx]
     }
 
     fun findMode(list: List<String>): List<String> {
