@@ -18,6 +18,7 @@ package org.tensorflow.lite.examples.objectdetection.fragments
 import android.annotation.SuppressLint
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -258,12 +259,17 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
             if (resultList.size == sampleSize && !playerIsPlaying && !playerUrlSet) {
                 val mostFrequentCategory = findMode(resultList)[0]
                 val url = findSuitableVideoUrl(mostFrequentCategory)
-                val item = MediaItem.fromUri(url)
-                player?.setMediaItem(item)
-                player?.prepare()
-                player?.play()
-                playerUrlSet = true;
-                Log.i("test---", "set video link")
+
+                if (mostFrequentCategory != "person") {
+                    fragmentCameraBinding.textView.text = mostFrequentCategory
+
+                    val item = MediaItem.fromUri(url)
+                    player?.setMediaItem(item)
+                    player?.prepare()
+                    player?.play()
+                    playerUrlSet = true;
+                    Log.i("test---", "set video link")
+                }
             }
         }
     }
