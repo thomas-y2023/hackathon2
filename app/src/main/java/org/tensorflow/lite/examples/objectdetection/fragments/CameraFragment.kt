@@ -73,7 +73,7 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
     private var resultList: MutableList<ResultRecord> = ArrayList<ResultRecord>()
     private var lastPlayedAdCategory = ""
     private val sampleSize = 1
-    private val goodThreshold = 0.7f
+    private val goodThreshold = 0.6f
 
     private var playerIsPlaying: Boolean = false
     private var playerUrlSet: Boolean = false
@@ -296,10 +296,6 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
             //     imageWidth
             // )
 
-//            while (!resultList.isEmpty() && resultList.size >= sampleSize) {
-//                resultList.removeFirst()
-//            }
-
             if (results != null && results.size > 0) {
                 for (result in results) {
                     val categories = result.categories
@@ -318,25 +314,17 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
                 }
             }
 
-//            if (resultList.size < sampleSize && !playerIsPlaying) {
-//                playDefaultVideo()
-//            }
-
             if (!playerIsPlaying) {
                 playDefaultVideo()
             }
 
             Log.i("test---", " " + resultList)
-            if (resultList.size >= sampleSize) {
-                val mostFrequentCategories = findSuitableCategories(resultList)
-                Log.i("test---", mostFrequentCategories.toString())
-                for (category in mostFrequentCategories) {
-                    if (tagSet.contains(category)) {
-                        setNextAdTo(category)
-                        break
-                    } else {
-                        setNextAdTo("")
-                    }
+            val bestCategory = findSuitableCategory(resultList)
+            if (tagSet.contains(bestCategory)) {
+                setNextAdTo(bestCategory)
+            } else {
+                if (resultList.find { it.item == nextAdKeywords } == null) {
+                    setNextAdTo("")
                 }
             }
 
@@ -355,10 +343,10 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
                     defaultVideoPlaying = false
                     setNextAdTo("")
                 }
-            }
-
-            if (nextAdKeywords == "" && !playerIsPlaying && !playerUrlSet) {
-                playDefaultVideo()
+            } else {
+                if (nextAdKeywords == "" && !playerIsPlaying && !playerUrlSet) {
+                    playDefaultVideo()
+                }
             }
         }
     }
@@ -388,21 +376,14 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
         return adsList[idx]
     }
 
-    fun findSuitableCategories(list: MutableList<ResultRecord>): List<String> {
-//        return list.subList(list.size - 1, list.size)
-//        val frequencyMap = list.groupingBy { it.score }.eachCount()
+    fun findSuitableCategory(list: MutableList<ResultRecord>): String {
         val sortedList = list.sortedByDescending { it.score }
-        Log.i("test---", " " + sortedList)
         if (sortedList.isNotEmpty()) {
             val item = sortedList[0].item
-            if (sortedList[0].score >= goodThreshold) {
-                list.clear()
-                return listOf(item)
-            }
+            list.clear()
+            return item
         }
-        return listOf()
-//        val maxFrequency = frequencyMap.values.maxOrNull()
-//        return frequencyMap.filterValues { it == maxFrequency }.keys.toList()
+        return ""
     }
 
     override fun onError(error: String) {
