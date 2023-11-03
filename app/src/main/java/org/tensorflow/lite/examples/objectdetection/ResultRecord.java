@@ -4,7 +4,7 @@ public class ResultRecord {
     private String item;
     private float score;
 
-    ResultRecord(String item, float score) {
+    public ResultRecord(String item, float score) {
         this.item = item;
         this.score = score;
     }
@@ -23,5 +23,13 @@ public class ResultRecord {
 
     public void setScore(float score) {
         this.score = score;
+    }
+
+    @Override
+    public String toString() {
+        return "ResultRecord{" +
+                "item='" + item + '\'' +
+                ", score=" + score +
+                '}';
     }
 }

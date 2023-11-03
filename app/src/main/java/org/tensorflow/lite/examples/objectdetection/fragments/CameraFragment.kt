@@ -44,6 +44,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 import org.tensorflow.lite.examples.objectdetection.MyCameraFilter
+import org.tensorflow.lite.examples.objectdetection.ResultRecord
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 import kotlin.collections.HashSet
@@ -69,9 +70,10 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
 
     private var player: SimpleExoPlayer? = null
 
-    private var resultList: MutableList<String> = ArrayList<String>()
-    private val sampleSize = 5
-    private val goodThreshold = 0.4f
+    private var resultList: MutableList<ResultRecord> = ArrayList<ResultRecord>()
+    private var lastPlayedAdCategory = ""
+    private val sampleSize = 1
+    private val goodThreshold = 0.7f
 
     private var playerIsPlaying: Boolean = false
     private var playerUrlSet: Boolean = false
@@ -159,10 +161,11 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
         addAdRecord(AdRecord("asset:///videos/bottle_cup.mp4", listOf("bottle", "cup")))
         addAdRecord(AdRecord("asset:///videos/hairdryer.ts", listOf("hairdryer")))
         addAdRecord(AdRecord("asset:///videos/hairdryer_toothbrush.ts", listOf("hairdryer", "toothbrush")))
-        addAdRecord(AdRecord("asset:///videos/laptop_keyboard_mouse.ts", listOf("laptop", "keyboard")))
+//        addAdRecord(AdRecord("asset:///videos/laptop_keyboard_mouse.ts", listOf("laptop", "keyboard")))
+        addAdRecord(AdRecord("asset:///videos/laptop_keyboard_mouse.ts", listOf("keyboard")))
         addAdRecord(AdRecord("asset:///videos/mouse.mp4", listOf("mouse")))
         addAdRecord(AdRecord("asset:///videos/pottedplant.mp4", listOf("potted plant")))
-        addAdRecord(AdRecord("asset:///videos/remote.mp4", listOf("remote")))
+//        addAdRecord(AdRecord("asset:///videos/remote.mp4", listOf("remote")))
         addAdRecord(AdRecord("asset:///videos/spoon_knife_fork_bowl_food.mp4", listOf("spoon", "knife", "fork", "bowl", "food")))
         addAdRecord(AdRecord("asset:///videos/teddybear.ts", listOf("teddy bear")))
         addAdRecord(AdRecord("asset:///videos/umbrella_2.mp4", listOf("umbrella")))
@@ -293,27 +296,40 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
             //     imageWidth
             // )
 
-            while (!resultList.isEmpty() && resultList.size >= sampleSize) {
-                resultList.removeFirst()
-            }
+//            while (!resultList.isEmpty() && resultList.size >= sampleSize) {
+//                resultList.removeFirst()
+//            }
 
             if (results != null && results.size > 0) {
                 for (result in results) {
                     val categories = result.categories
                     categories.sortByDescending { it.score }
+                    val label = categories[0].label
+                    val score = categories[0].score
                     if (tagSet.contains(categories[0].label)) {
-                        resultList.add(categories[0].label)
+                        if (resultList.find { it.item == label } != null) {
+                            val res = resultList.find { it.item == label }!!
+                            res.score = Math.max(score, res.score + 0.1f)
+                        } else {
+                            val record = ResultRecord(label, score)
+                            resultList.add(record)
+                        }
                     }
                 }
             }
 
-            if (resultList.size < sampleSize && !playerIsPlaying) {
+//            if (resultList.size < sampleSize && !playerIsPlaying) {
+//                playDefaultVideo()
+//            }
+
+            if (!playerIsPlaying) {
                 playDefaultVideo()
             }
 
             Log.i("test---", " " + resultList)
             if (resultList.size >= sampleSize) {
                 val mostFrequentCategories = findSuitableCategories(resultList)
+                Log.i("test---", mostFrequentCategories.toString())
                 for (category in mostFrequentCategories) {
                     if (tagSet.contains(category)) {
                         setNextAdTo(category)
@@ -372,11 +388,21 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
         return adsList[idx]
     }
 
-    fun findSuitableCategories(list: List<String>): List<String> {
+    fun findSuitableCategories(list: MutableList<ResultRecord>): List<String> {
 //        return list.subList(list.size - 1, list.size)
-        val frequencyMap = list.groupingBy { it }.eachCount()
-        val maxFrequency = frequencyMap.values.maxOrNull()
-        return frequencyMap.filterValues { it == maxFrequency }.keys.toList()
+//        val frequencyMap = list.groupingBy { it.score }.eachCount()
+        val sortedList = list.sortedByDescending { it.score }
+        Log.i("test---", " " + sortedList)
+        if (sortedList.isNotEmpty()) {
+            val item = sortedList[0].item
+            if (sortedList[0].score >= goodThreshold) {
+                list.clear()
+                return listOf(item)
+            }
+        }
+        return listOf()
+//        val maxFrequency = frequencyMap.values.maxOrNull()
+//        return frequencyMap.filterValues { it == maxFrequency }.keys.toList()
     }
 
     override fun onError(error: String) {
