@@ -36,19 +36,35 @@ import com.google.android.exoplayer2.Player
 import com.google.android.exoplayer2.SimpleExoPlayer
 import org.tensorflow.lite.examples.objectdetection.AdRecord
 import org.tensorflow.lite.examples.objectdetection.ObjectDetectorHelper
+import org.tensorflow.lite.examples.objectdetection.AgeGenderDetectionHelper
 import org.tensorflow.lite.examples.objectdetection.R
 import org.tensorflow.lite.examples.objectdetection.databinding.FragmentCameraBinding
 import org.tensorflow.lite.task.vision.detector.Detection
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import org.tensorflow.lite.Interpreter
+import org.tensorflow.lite.support.common.FileUtil
+import android.graphics.Matrix
+import android.graphics.Rect
+import org.tensorflow.lite.gpu.CompatibilityList
+import org.tensorflow.lite.gpu.GpuDelegate
+import org.tensorflow.lite.nnapi.NnApiDelegate
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.floor
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.FaceDetection
+import com.google.mlkit.vision.face.FaceDetectorOptions
 
 import org.tensorflow.lite.examples.objectdetection.MyCameraFilter
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 import kotlin.collections.HashSet
 
-class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
+class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener, AgeGenderDetectionHelper.AgeGenderDetectionListener {
 
     private val TAG = "ObjectDetection"
 
@@ -58,7 +74,9 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
         get() = _fragmentCameraBinding!!
 
     private lateinit var objectDetectorHelper: ObjectDetectorHelper
+    private lateinit var ageGenderDetectionHelper: AgeGenderDetectionHelper
     private lateinit var bitmapBuffer: Bitmap
+    private lateinit var bitmapBuffer2: Bitmap
     private var preview: Preview? = null
     private var imageAnalyzer: ImageAnalysis? = null
     private var camera: Camera? = null
@@ -124,6 +142,11 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
         objectDetectorHelper = ObjectDetectorHelper(
             context = requireContext(),
             objectDetectorListener = this)
+
+        ageGenderDetectionHelper = AgeGenderDetectionHelper(
+            context = requireContext(),
+            ageGenderDetectionListener = this
+        )
 
         // Initialize our background executor
         cameraExecutor = Executors.newSingleThreadExecutor()
@@ -268,6 +291,7 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
         val imageRotation = image.imageInfo.rotationDegrees
         // Pass Bitmap and rotation to the object detector helper for processing and detection
         objectDetectorHelper.detect(bitmapBuffer, imageRotation)
+        ageGenderDetectionHelper.detectFaces(bitmapBuffer)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -284,7 +308,7 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
       imageWidth: Int
     ) {
         activity?.runOnUiThread {
-            Log.d(TAG, "onResults: inferenceTime: $inferenceTime")
+            //Log.d(TAG, "onResults: inferenceTime: $inferenceTime")
 
             // Pass necessary information to OverlayView for drawing on the canvas
             // fragmentCameraBinding.overlay.setResults(
@@ -382,6 +406,58 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
     override fun onError(error: String) {
         activity?.runOnUiThread {
             Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun agd_onError(error: String) {
+        activity?.runOnUiThread {
+            Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun agd_onResults(
+        res: List<AgeGenderDetectionHelper.Person>
+    ) {
+        if (res.size > 0) {
+            Log.v("Marcus", "age: "+res[0].age.toString())
+            Log.v("Marcus", "gender:" +res[0].gender.toString())
+            Log.v("Marcus", "total:" +res.size)
+        }
+
+        activity?.runOnUiThread {
+            // //Log.d(TAG, "onResults: inferenceTime: $inferenceTime")
+
+            // // Pass necessary information to OverlayView for drawing on the canvas
+            // // fragmentCameraBinding.overlay.setResults(
+            // //     results ?: LinkedList<Detection>(),
+            // //     imageHeight,
+            // //     imageWidth
+            // // )
+
+            // if (!resultList.isEmpty() && resultList.size >= sampleSize) {
+            //     resultList.removeFirst()
+            // }
+
+            // if (results != null && results.size > 0) {
+            //     resultList.add(results[0].categories[0].label)
+            // }
+
+            // Log.i("test---", resultList.size.toString())
+            // if (resultList.size == sampleSize && !playerIsPlaying && !playerUrlSet) {
+            //     val mostFrequentCategory = findMode(resultList)[0]
+            //     val url = findSuitableVideoUrl(mostFrequentCategory)
+
+            //     if (mostFrequentCategory != "person") {
+            //         fragmentCameraBinding.textView.text = mostFrequentCategory
+
+            //         val item = MediaItem.fromUri(url)
+            //         player?.setMediaItem(item)
+            //         player?.prepare()
+            //         player?.play()
+            //         playerUrlSet = true;
+            //         Log.i("test---", "set video link")
+            //     }
+            // }
         }
     }
 }
